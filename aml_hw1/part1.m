@@ -3,87 +3,94 @@
 % Professor Toney Jebera, Columbia University
 % Author: Devin Jones
 function part1
-run('C:\Users\Devin\Documents\MATLAB\mve-05\setuppath.m');
+%run('C:\Users\Devin\Documents\MATLAB\mve-05\setuppath.m');
 
-load('teapots100.mat');
+% Load data and visualize spinning teapot
+load teapots100.mat; for i=1:100; image(reshape(teapots(:,i),76,101,3)/255); pause(0.01); end;
 
-%load teapots100.mat; for i=1:100; image(reshape(teapots(:,i),76,101,3)/255); pause(0.01); end;
 X = teapots;
 [D, N] = size(X);
 disp(sprintf('%d points in %d dimensions:', N, D));
 
 % Calculate linear kernal. 
-A = calculateAffinityMatrix(X,1,0);
+A = X' * X; 
+    
 
 % Derive distance matrix from kernal
-G = convertAffinityToDistance(A);
+G = getDistanceMat(A);
 
 
-% Neighbor params
-bVal = 3;
-type = 1;
+% Iterate over 2-4 nearest neighbors
+for i=2:4
+    mve2d(G,i,A);
+end
 
-neighbors = calculateNeighborMatrix(G, bVal, type);
-
-
-%parameters for MVE
-targetd = 2;
-tol = 0.99;
-
-[Y, K, eigVals, mveScore] = mve(A, neighbors, tol, targetd);
-
-
-%this is from Blake Shaw's mvedrive.m
-function [A] = calculateAffinityMatrix(X, affType, sigma)
-    [D,N] = size(X);
-    disp(sprintf('Calculating Distance Matrix'));
+% Iterate 2D MVE embedding over number of neighbors
+function mve2d(G,bVal,A)
     
-    A = zeros(N, N);
-    
-    if affType == 1
-        disp(sprintf('Using Linear Kernel'));
-        A = X' * X; 
-        %A = cov(X);
-    elseif affType == 2
-        disp(sprintf('Using RBF Kernel'));
-        A = zeros(N, N);
-        R1 = X' * X;
-        Z = diag(R1);
-        R2 = ones(N, 1) * Z';
-        R3 = Z * ones(N, 1)';
-        A  = exp((1/sigma) * R1 - (1/(2*sigma)) * R2 - (1/(2*sigma)) * R3);
-    end
+    % Returns a binary matrix with the dimensions of G
+    % 1 is a neighbor, 0 is not a neighbor
+    neighbors = nearestNeighbors(G, bVal);
+
+    %parameters for MVE
+    targetd = 2;
+    tol = 0.99;
+
+    [Y, K, eigVals, mveScore] = mve(A, neighbors, tol, targetd);
+
+    plotTitle = sprintf('MVE embedding: Teapot images. Number of neighbors: %d',bVal);
+    plotEmbedding(Y, neighbors, plotTitle ,bVal)
     
  % Converts and affinity matrix to a distance matrix
- % Modified by Devin Jones
-function G = convertAffinityToDistance(A)
+function G = getDistanceMat(A)
         N = size(A,1);
         b = diag(A);
         G = b * ones(N,1)' + ones(N,1) * b' - 2 * A;
     
 
 % Finds nearest neighbors in distance matrix G
-function neighbors = calculateNeighborMatrix(G, bVal, type)
+% From the example
+% Modified by Devin Jones
+function neighbors = nearestNeighbors(G, bVal)
 
     N=length(G);
         
-    if type==1
-        disp(sprintf('Finding neighbors using K-nearest -- k=%d', bVal));
-        [sorted,index] = sort(G);
-        nearestNeighbors = index(2:(bVal+1),:);
+    disp(sprintf('Finding neighbors using K-nearest -- k=%d', bVal));
+    [sorted,index] = sort(G);
+    nearestNeighbors = index(2:(bVal+1),:);
+
+    neighbors = zeros(N, N);
+    for i=1:N
+        for j=1:bVal
+            neighbors(i, nearestNeighbors(j, i)) = 1;
+            neighbors(nearestNeighbors(j, i), i) = 1;
+        end
+    end
         
-        
-        neighbors = zeros(N, N);
-        for i=1:N
-            for j=1:bVal
-                neighbors(i, nearestNeighbors(j, i)) = 1;
-                neighbors(nearestNeighbors(j, i), i) = 1;
+    
+% Plots a 2d embedding
+% from the example
+% Modified by Devin Jones
+function plotEmbedding(Y, neighbors, plotTitle, figureNum)
+    plot = figure(figureNum);
+    clf;
+    
+    N = length(neighbors);
+    
+    scatter(Y(1,:),Y(2,:), 60,'filled'); axis equal;
+    for i=1:N
+        for j=1:N
+            if neighbors(i, j) == 1
+                line( [Y(1, i), Y(1, j)], [ Y(2, i), Y(2, j)], 'Color', [0, 0, 1], 'LineWidth', 1);
             end
         end
-        
-    else
-        disp(sprintf('Finding neighbors using B-matching -- b=%d', bVal));
-        neighbors = permutationalBMatch(G, bVal);
-        neighbors = neighbors .* (1 - eye(N));
     end
+    
+    title(plotTitle);
+    drawnow; 
+    axis off;
+    fileName = strcat(strrep(strrep(plotTitle,' ',''),':',''),'.png');
+    saveas(plot,fileName,'png');
+    
+    
     
