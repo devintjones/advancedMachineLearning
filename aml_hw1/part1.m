@@ -2,8 +2,14 @@
 % Advacned Machine Learning HW1
 % Professor Toney Jebera, Columbia University
 % Author: Devin Jones
+% Date  : 1/31/2015
+
+% This program assumes mve, yalmip and cspd have been installed and setup
+% properly
+% and teapots100.mat is in the working directory
+
 function part1
-%run('C:\Users\Devin\Documents\MATLAB\mve-05\setuppath.m');
+run('C:\Users\Devin\Documents\MATLAB\mve-05\setuppath.m');
 
 % Load data and visualize spinning teapot
 load teapots100.mat; for i=1:100; image(reshape(teapots(:,i),76,101,3)/255); pause(0.01); end;
@@ -14,7 +20,7 @@ disp(sprintf('%d points in %d dimensions:', N, D));
 
 % Calculate linear kernal. 
 A = X' * X; 
-    
+
 
 % Derive distance matrix from kernal
 G = getDistanceMat(A);
