@@ -2,7 +2,7 @@
 % Advanced Machine Learning HW1
 % Professor Tony Jebara, Columbia University
 % Author: Devin Jones
-function part2
+function part3
 
 %need to run this first to ensure dependencies are included in path vars
 %run('C:\Users\Devin\Documents\MATLAB\mve-05\setuppath.m')
@@ -15,44 +15,37 @@ X = convertDigits(digits9,0);
 [D, N] = size(X);
 disp(sprintf('%d points in %d dimensions:', N, D));
 
-
-for kernel = 1:3; % iterate over each kernel type
-    if kernel == 1
-        plotTitle = 'Linear Kernel';
-        sigma = 0;
-        degree = 0;
-    elseif kernel == 2
-        sigma = .5;
-        degree = 0;
-        plotTitle = sprintf('RBF Kernel. Sigma = %d',sigma);
-    elseif kernel== 3
-        sigma = 0;
-        degree = 2;
-        plotTitle = sprintf('Polynomial Kernel. Degree = %d',degree);
-    end;
+kernel = 1;
+sigma = 0;
+degree = 0; % polynomial kernel degree. not used for part3
     
-    % Calculate linear kernal. 
-    A = calculateAffinityMatrix(X,kernel,sigma,degree);
+% Calculate linear kernal. 
+A = calculateAffinityMatrix(X,kernel,sigma,degree);
 
-    % Derive distance matrix from kernal
-    G = convertAffinityToDistance(A);
+% Derive distance matrix from kernal
+G = getDistanceMat(A);
 
-    % Neighbor params
-    bVal = 3; %# of neighbors
-    type = 1; %KNN
+%populate this matrix with NN & fidelity score for plotting
+fidelity = zeros(3,2);
 
+% Neighbor params
+type = 1; %KNN
+for NN=2:4;
     % Returns a neighborhood graph with dimensions of G
-    neighbors = calculateNeighborMatrix(G, bVal, type);
+    neighbors = calculateNeighborMatrix(G, NN, type);
 
     %parameters for MVE
     targetd = 2;
     tol = 0.99;
 
     [Y, K, eigVals, mveScore] = mve(A, neighbors, tol, targetd);
-
-    plotEmbedding(Y, neighbors, plotTitle ,kernel)
-end
+    fidelity(NN-1,:)= [NN,mveScore]
     
+end
+
+plotTitle = 'MVE Fidelity';
+plotFidelity(fidelity, plotTitle,23)
+
 %Converts the digits9 dataset into BW image format
 function [new_x] = convertDigits(digits9,movie)
 
@@ -113,12 +106,10 @@ function [A] = calculateAffinityMatrix(X, affType, sigma, d)
     end
     
  % Converts and affinity matrix to a distance matrix
- % Modified by Devin Jones
-function G = convertAffinityToDistance(A)
+function G = getDistanceMat(A)
         N = size(A,1);
         b = diag(A);
-        G = b * ones(N,1)' + ones(N,1) * b' - 2 * A;
-    
+        G = b * ones(N,1)' + ones(N,1) * b' - 2 * A;    
 
 % Finds nearest neighbors in distance matrix G
 function neighbors = calculateNeighborMatrix(G, bVal, type)
@@ -145,26 +136,17 @@ function neighbors = calculateNeighborMatrix(G, bVal, type)
         neighbors = neighbors .* (1 - eye(N));
     end
     
-% Plots a 2d embedding
-% from the example
-% Modified by Devin Jones
-function plotEmbedding(Y, neighbors, plotTitle, figureNum)
+% Plots fidelity of MVE over various nearest neighbor params
+function plotFidelity(fidelity, plotTitle, figureNum)
     plot = figure(figureNum);
     clf;
     
-    N = length(neighbors);
-    
-    scatter(Y(1,:),Y(2,:), 60,'filled'); axis equal;
-    for i=1:N
-        for j=1:N
-            if neighbors(i, j) == 1
-                line( [Y(1, i), Y(1, j)], [ Y(2, i), Y(2, j)], 'Color', [0, 0, 1], 'LineWidth', 1);
-            end
-        end
-    end
+    bar(fidelity(:,1),fidelity(:,2));
     
     title(plotTitle);
+    xlabel('Number of Nearest Neighbors');
+    ylabel('Fidelity');
     drawnow; 
-    axis off;
+    
     fileName = strcat(strrep(strrep(plotTitle,' ',''),':',''),'.png');
     saveas(plot,fileName,'png');

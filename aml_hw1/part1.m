@@ -1,6 +1,6 @@
 
 % Advacned Machine Learning HW1
-% Professor Toney Jebera, Columbia University
+% Professor Tony Jebara, Columbia University
 % Author: Devin Jones
 % Date  : 1/31/2015
 
