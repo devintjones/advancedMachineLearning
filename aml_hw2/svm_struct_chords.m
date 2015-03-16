@@ -11,11 +11,9 @@ function svm_struct_chords
   % and corresponding y vector
   patterns = {} ;
   labels = {} ;
-  for i=1:10
-    patterns{i}          = zeros(25,height);
-    patterns{i}(L(i)+1,:)= transpose(F(:,i)) ;
-    labels{i}            = -1*ones(1,25) ; 
-    labels{i}(L(i)+1)    = 1 ;
+  for i=1:width
+    patterns{i}          = F(:,i);
+    labels{i}            = L(i) ; 
   end
 
   % ------------------------------------------------------------------
@@ -27,8 +25,13 @@ function svm_struct_chords
   parm.lossFn = @lossCB ;
   parm.constraintFn  = @constraintCB ;
   parm.featureFn = @featureCB ;
-  parm.dimension = height ;
   parm.verbose = 1 ;
+  
+  test_x = patterns{1};
+  test_y = labels{1};
+  psi = featureCB(parm, test_x, test_y);
+  parm.dimension = length(psi);
+
   args = ' -c 1.0 -o 1 -v 1 ';
   model = svm_struct_learn(args, parm) ;
   w = model.w ;
@@ -59,14 +62,17 @@ end
 % ------------------------------------------------------------------
 
 function delta = lossCB(param, y, ybar)
-  delta = y - ybar ;
+  delta = double(y ~= ybar) ;
   if param.verbose
     fprintf('delta = loss(%3d, %3d) = %f\n', y, ybar, delta) ;
   end
 end
 
 function psi = featureCB(param, x, y)
-  psi = sparse(y*x/2) ;
+  width = length(x);
+  psi   = zeros(1,25*width);
+  psi(:,(y)*width+1:(y+1)*width)= x ;
+  psi = sparse(psi);
   if param.verbose
     fprintf('w = psi([%8.3f,%8.3f], %3d) = [%8.3f, %8.3f]\n', ...
             x, y, full(psi(1)), full(psi(2))) ;
@@ -77,12 +83,26 @@ function yhat = constraintCB(param, model, x, y)
 % slack resaling: argmax_y delta(yi, y) (1 + <psi(x,y), w> - <psi(x,yi), w>)
 % margin rescaling: argmax_y delta(yi, y) + <psi(x,y), w>
   
-  for i in 1:length(param.patterns)
-      if y == param.labels{i}
-          delta = 0 ; else delta = 1; end
+  psi   = param.featureFn(param,x,y);
+  size(psi)
+  size(model.w)
+  for i = 0:24
+      if i == y
+          continue;
+      end
+      psi_compare   = param.featureFn(param,x,i);
+      delta = param.lossFn(param, y, i);
+      score = delta*(1 + dot(psi_compare,model.w) - dot(psi,model.w)) ; 
+      if ~exist('max_score')
+          max_score = score;
+          yhat = i;
+      end
+      if score > max_score
+          max_score = score;
+          yhat = i;
+      end
+  end
       
-      if dot(param.labels{i}*x, model.w) - dot(y*x, model.w) > 1
-          yhat = y ; else yhat = - y ; end
   if param.verbose
     fprintf('yhat = violslack([%8.3f,%8.3f], [%8.3f,%8.3f], %3d) = %3d\n', ...
             model.w, x, y, yhat) ;
