@@ -4,58 +4,111 @@ function svm_struct_chords
    
   song = strcat('advancedMachineLearning\aml_hw2\CHORDS\',songfiles(1,:));
   load(song)
-
+  F = F;
+  L = L;
   [height,width] = size(F);
   
-  % build joint feature map
-  % and corresponding y vector
-  patterns = {} ;
-  labels = {} ;
-  for i=1:width
-    patterns{i}          = F(:,i);
-    labels{i}            = L(i) ; 
+  
+  % 30% random sample from song added to training data
+  num_train = width*.3;
+  training_idx = randsample(width,width*.3);
+  training_idx = 1:width; % test with all frames from one song
+
+  linear_chroma = @(F,i) F(:,i);
+
+  % iterate over range of C margin values
+  make_c_vals = @(i) 10.^(i);
+  C_vals = make_c_vals(-5:5);
+  
+  cv_score = zeros(length(C_vals),3);
+  for i=1:length(C_vals)
+      args = strcat(' -c ',C_vals(i),' -o 1 -v 1 ');
+      scores = svm_struct_cv(5,training_idx,F,L,args,linear_chroma);
+      cv_score(i,:) = [C_val(i),mean(scores),std(scores)];
   end
-
-  % ------------------------------------------------------------------
-  %                                                    Run SVM struct
-  % ------------------------------------------------------------------
-
-  parm.patterns = patterns ;
-  parm.labels = labels ;
-  parm.lossFn = @lossCB ;
-  parm.constraintFn  = @constraintCB ;
-  parm.featureFn = @featureCB ;
-  parm.verbose = 1 ;
-  
-  test_x = patterns{1};
-  test_y = labels{1};
-  psi = featureCB(parm, test_x, test_y);
-  parm.dimension = length(psi);
-
-  args = ' -c 1.0 -o 1 -v 1 ';
-  model = svm_struct_learn(args, parm) ;
-  w = model.w ;
-
-  %{
-  % ------------------------------------------------------------------
-  %                                                              Plots
-  % ------------------------------------------------------------------
-  
-  figure(1) ; clf ; hold on ;
-  x = [patterns{:}] ;
-  y = [labels{:}] ;
-  plot(x(1, y>0), x(2,y>0), 'g.') ;
-  plot(x(1, y<0), x(2,y<0), 'r.') ;
-  set(line([0 w(1)], [0 w(2)]), 'color', 'y', 'linewidth', 4) ;
-  xlim([-3 3]) ;
-  ylim([-3 3]) ;
-  set(line(10*[w(2) -w(2)], 10*[-w(1) w(1)]), ...
-      'color', 'y', 'linewidth', 2, 'linestyle', '-') ;
-  axis equal ;
-  set(gca, 'color', 'b') ;
-  w
-  %}
+ 
 end
+
+  
+% parallel cross validation
+% parallel implementation cuts training time in half
+function scores = svm_struct_cv(folds,training_idx,F,L,args,feature_maker)
+  len = length(training_idx);
+  chunk_size = len/folds;
+  scores = zeros(folds,1);
+  parfor k = 1:5
+    
+      % select kth subset of training_idx
+      % and corresponding test set
+      cv_test  = training_idx((k-1)*chunk_size + 1:k*chunk_size);
+      cv_train = setdiff(training_idx,cv_test);
+      
+      % have to init cells in the body of parfor
+      patterns_train = cell(1,length(cv_train));
+      labels_train   = cell(1,length(cv_train));
+      patterns_test  = cell(1,length(cv_test));
+      labels_test    = cell(1,length(cv_test));
+      
+      for i=1:length(cv_train)
+        patterns_train{i}  = feature_maker(F,cv_train(i));
+        labels_train{i}    = L(cv_train(i)) ; 
+      end
+      for i=1:length(cv_test)
+        patterns_test{i}   = feature_maker(F,cv_test(i));
+        labels_test{i}    = L(cv_test(i)) ; 
+      end
+
+      % have to init parm in the body of parfor
+      parm = struct
+      parm.lossFn = @lossCB ;
+      parm.constraintFn  = @constraintCB ;
+      parm.featureFn = @featureCB ;
+      parm.verbose = 0 ;
+
+      psi = featureCB(parm, F(:,1), L(1));
+      parm.dimension = length(psi);
+
+      parm.patterns = patterns_train ;
+      parm.labels = labels_train ;
+  
+      model = svm_struct_learn(args, parm) ;
+      w = model.w ;
+
+      % compute accuracy & store in array
+      acc = accuracy(parm,w,patterns_test,labels_test);
+      scores(k,1) = acc;
+  end
+  
+end
+
+
+
+function acc = accuracy(param,w,test_x,test_y)
+  num_correct = 0;
+  for i=1:length(test_x)
+      prediction = predict(param,w,test_x{i});
+      if prediction == test_y{i}
+          num_correct = num_correct + 1;
+      end
+  end
+  acc = num_correct/length(test_x);
+end
+
+% predict class of x based on w
+function prediction = predict(param,w,x)
+    for i = 0:24
+      psi   = param.featureFn(param,x,i);
+      score = dot(psi,w) ; 
+      if ~exist('max_score')
+          max_score = score;
+          prediction = i;
+      end
+      if score > max_score
+          max_score = score;
+          prediction = i;
+      end
+    end
+end 
 
 % ------------------------------------------------------------------
 %                                               SVM struct callbacks
@@ -82,10 +135,9 @@ end
 function yhat = constraintCB(param, model, x, y)
 % slack resaling: argmax_y delta(yi, y) (1 + <psi(x,y), w> - <psi(x,yi), w>)
 % margin rescaling: argmax_y delta(yi, y) + <psi(x,y), w>
-  
+
+  % slack rescaling
   psi   = param.featureFn(param,x,y);
-  size(psi)
-  size(model.w)
   for i = 0:24
       if i == y
           continue;
