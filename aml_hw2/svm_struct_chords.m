@@ -14,6 +14,8 @@ function svm_struct_chords
   training_idx = randsample(width,width*.3);
   training_idx = 1:width; % test with all frames from one song
 
+  % create features here
+  % this selects current frame
   linear_chroma = @(F,i) F(:,i);
 
   % iterate over range of C margin values
@@ -22,22 +24,27 @@ function svm_struct_chords
   
   cv_score = zeros(length(C_vals),3);
   for i=1:length(C_vals)
-      args = strcat(' -c ',C_vals(i),' -o 1 -v 1 ');
+      args = [' -c ',num2str(C_vals(i),'%f'),' -o 1 -v 1 '];
       scores = svm_struct_cv(5,training_idx,F,L,args,linear_chroma);
-      cv_score(i,:) = [C_val(i),mean(scores),std(scores)];
+      cv_score(i,:) = [C_vals(i),mean(scores),std(scores)];
   end
- 
+  cv_score
+  save('linear_chroma_results.mat','cv_score')
 end
 
   
 % parallel cross validation
 % parallel implementation cuts training time in half
 function scores = svm_struct_cv(folds,training_idx,F,L,args,feature_maker)
+  if folds < 3
+      error('Enter fold value greater than 2')
+  end
+  
   len = length(training_idx);
   chunk_size = len/folds;
   scores = zeros(folds,1);
-  parfor k = 1:5
-    
+  
+  parfor k = 1:folds
       % select kth subset of training_idx
       % and corresponding test set
       cv_test  = training_idx((k-1)*chunk_size + 1:k*chunk_size);
