@@ -1,0 +1,63 @@
+---
+title: 'Structured Support Vector Machines \break Advanced Machine Learning HW2 \break Columbia University'
+author: 'CS W7442 \break Devin Jones \break dj2374'
+date: "Monday, March 23, 2015"
+output: pdf_document
+fontsize: 12pt
+uni: dj2374
+---
+
+# Abstract
+
+
+
+The goal of the assingment is to label music by the Beatles where each song is represented as a sequence of Chroma frames over time. Chroma frames are 12-dimensional continuous features between 0,1 that compactly represent sound in a short time-window.
+
+Various conditional learning methods could be applied to this problem. In [this paper](http://www.cs.columbia.edu/~jebara/papers/icmla09adrian.pdf), Weller, Ellis, and Jebara show that structured support vector machines outperformed then state of the art methods, Hidden Markov Models, for the 2008 LabROSA Supervised Chord Recognition System. 
+
+## Method
+
+Structured SVM is a conditional learning method that generalizes large-margin SVM to  handle multiclass and structured prediciton. The primal form of SVM is 
+$$\underset{w,b,\xi \geq 0}{min} \frac{1}{2}\left \| w \right \|^{2}$$
+$$s.t. \forall i \in 1...n: y_{i}(w^{T}\cdot x_{i}-b)\geq1      $$
+
+The primal form of the 1-slack formulation of SVMstruct from [JoFinYu08] is 
+$$\underset{w,\xi \geq 0}{min} \frac{1}{2}\left \| w \right \|^{2}$$
+$$s.t.  \forall y{}'_{1}..y{}'_{n} \in Y : \frac{1}{n}\sum_{i=1}^{n}[w^{T}\cdot \phi \left ( x,y_{i} \right ) - w^{T}\cdot \phi \left ( x,y{}'_{i} \right )] \geq  \frac{1}{n}\sum_{i=1}^{n}[\Delta (y_{i},y{}'_{i})] - \xi   $$
+
+The 1-slack formulation was derived after the n-slack formulation and is more efficient because there are less constaints to evaluate. 
+
+Beyond the obvious difference in constaints between SVM and SVMstruct, in the latter, the feature vectors is generated in a clever way. A joint feature map $\phi \left ( x,y \right )$ is used to map the combination of $x$ and $y$ into a sparse, wide vector. The resulting vector is $DK$ dimensional, where $D$ is the dimenion of $x$ and $K$ is the number of classes of $y$.  This feature map replaces the $x$ vector when trainingn the SVM. All values of $\phi \left ( x,y \right )$ where $x$ is not are set to zero. 
+
+Also instead of using the support vectors to classify the observation outright as in SVM, a predition of $y$ is found by the following evaluation: $$y = argmax_{y{}'}  w^{T}\cdot \phi \left ( x,y{}' \right )$$ This should be intuitive based on the joint feature map; training a model on the sparse feature map produces lower values in w where there is an absence of the original $x$ values. 
+
+Additionally the delta function can be formulated to suit the problem. That is, if we can quantify a distance between ys, we can add this information to the model to improve performance. 
+
+# Data
+
+The data consisted of 180 Beatles songs encoded into beat-synchronous Chroma features. These features are 12 dimensional vectors that range in value from [0,1]  which are constructed to estimate the intensity of each semitone, regardless of octave. Each frame represents a beat in the music and has been manually annotated with a chord between 0 and 24 representing all possible chords in music. The number of frames in each song range from 77 to 1806.
+
+The data used for the assignment can be obtained [here](http://www.cs.columbia.edu/~jebara/4772/CHORDS.zip).
+
+# Method
+
+Various feature constructors and contraint settings were tested to evaluate accuracy. A random subset of 10 songs were selected from the data, and model was trained over a random 30% subset of data from each of the 10 songs for every feature. The C paramater was tuned for slack constraint models via k-fold cross validation in parallel, and the best C was used to retrain over the same 30%. The C paramter is not used in the margin constraint formulation. The Hamming accuracy was evaluated on an unseen random 10% subset from the same song used for training.
+\pagebreak
+The table below shows the average and standard deviation of model accuracies over 10 random songs. 
+
+```{r echo=F}
+library(knitr)
+results <- read.csv('C:/Users/Devin/Documents/MATLAB/feature_scores.csv')
+names(results) <- c("Feature","AvgScore","ScoreStddev")
+results <- results[order(-results$AvgScore),]
+row.names(results) <- NULL
+kable(results)
+```
+
+
+# Songs
+
+![song1](C:/Users/Devin/Documents/MATLAB/advancedMachineLearning/aml_hw2/song1.png)
+
+![song2](C:/Users/Devin/Documents/MATLAB/advancedMachineLearning/aml_hw2/song2.png)
+
