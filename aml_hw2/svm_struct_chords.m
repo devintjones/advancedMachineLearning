@@ -47,29 +47,39 @@ function svm_struct_chords
           final_trains  = obs_subset(training_idx,song_indices); % some frames need to be removed because of certain feature builders
 
           
-          % svm_struct args
-          make_c_vals = @(k) 10.^(k);
-          C_vals = make_c_vals(-3:1);
-
+          % svm_struct_cv args
+          
+          % pick constaint. if slack, use C as tunning param.
+          %                 if margin, use e
           constraint_param = ' -o 1 ';
+          if findstr(args,'-o 1')
+            tune_val = ' -c ';
+          else
+            tune_val = ' -e ';
+          end
+          
           verbosity = ' -v 0 ';
+          
+          make_c_vals = @(k) 10.^(k);
+          tuning_param = make_c_vals(-3:1);
 
-          cv_score = zeros(length(C_vals),3);
-          for m=1:length(C_vals)
-              args = [' -c ',num2str(C_vals(m),'%f'),constraint_param,verbosity];
+      
+          cv_score = zeros(length(tuning_param),3);
+          for m=1:length(tuning_param)
+              args = [tune_val,num2str(tuning_param(m),'%f'),constraint_param,verbosity];
               disp(['Fitting model: ',args])
               scores = svm_struct_cv(3,final_trains,F,L,args,feature_maker);
               scores 
-              cv_score(m,:) = [C_vals(m),mean(scores),std(scores)];
+              cv_score(m,:) = [tuning_param(m),mean(scores),std(scores)];
           end
           cv_score
 
           
           % select best Cval from cross validation
           c      = find(cv_score(:,2)==max(cv_score(:,2)),1);
-          best_c = C_vals(c);
-          args   = [' -c ',num2str(best_c,'%f'),constraint_param,verbosity];
-          disp(['Using C = ',num2str(best_c,'%f'),' for final parameters'])
+          best_c = tuning_param(c);
+          args   = [tune_val,num2str(best_c,'%f'),constraint_param,verbosity];
+          disp(['Using ',tune_val,' = ',num2str(best_c,'%f'),' for testing parameters'])
 
           
           % finally, fit to entire training data with the best C parameter and 
