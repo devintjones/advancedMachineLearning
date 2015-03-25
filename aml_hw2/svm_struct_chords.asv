@@ -1,4 +1,4 @@
-function svm_struct_chords
+function svm_struct_chords_refactor
 
   randn('state',0) ;
   rand('state',0) ;
