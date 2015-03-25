@@ -13,6 +13,9 @@ function svm_struct_chords
                   @one_before,@two_before,@three_before,...
                   @one_after, @two_after, @three_after,...
                   @one_before_after,@two_before_after,@three_before_after};
+  feature_list = {@linear_chroma,@linear_chroma_quad,...
+                  @one_after_quad, @two_after_quad, @three_after_quad,...
+                  @one_before_after_quad,@two_before_after_quad,@three_before_after_quad};
   for j=1:length(feature_list)
       
       % select feature maker
@@ -48,7 +51,7 @@ function svm_struct_chords
           make_c_vals = @(k) 10.^(k);
           C_vals = make_c_vals(-3:1);
 
-          constraint_param = ' -o 2 ';
+          constraint_param = ' -o 1 ';
           verbosity = ' -v 0 ';
 
           cv_score = zeros(length(C_vals),3);
@@ -104,7 +107,7 @@ end
 
 % menu of feature_makers
 % must take only F,i as arguements
-% and return a vector
+% and return an array of functions and a file name
 
 % +0-0
 function [f,obs_subset,file_name] = linear_chroma
@@ -176,6 +179,165 @@ function [f,obs_subset,file_name] = three_before_after
   obs_subset = @(training_idx,song_indices) setdiff(training_idx,vertcat(song_indices , ...
       song_indices -1,song_indices-2,song_indices+1,song_indices-3,song_indices+2));
   file_name = 'three_before_after_results.mat';  
+end
+
+% added quadratic cross terms
+% Q+0-0
+function [f,obs_subset,file_name] = linear_chroma_quad
+  function feature = feature_maker(F,i) 
+      feature_init = [F(:,i)];
+      % quadratic cross terms will be the size of a finite arithmetic sum
+      big_feature  = zeros((length(feature_init)^2+length(feature_init))/2,1);
+      idx = 1;
+      for i = 1:length(feature_init)
+        for j = 1:length(feature_init)
+          if j >= i
+              big_feature(idx) = feature_init(i)*feature_init(j);
+              idx = idx + 1;
+          end
+        end
+      end
+      feature = [feature_init;big_feature];
+  end
+  
+  f          = @feature_maker;
+  obs_subset = @(training_idx,song_indices) training_idx;
+  file_name  = 'linear_chroma_quad_results.mat';
+end
+
+
+% Q+1-0
+function [f,obs_subset,file_name] = one_after_quad
+  function feature = feature_maker(F,i) 
+      feature_init = [F(:,i);F(:,i+1)];
+      % quadratic cross terms will be the size of a finite arithmetic sum
+      big_feature  = zeros((length(feature_init)^2+length(feature_init))/2,1);
+      idx = 1;
+      for i = 1:length(feature_init)
+        for j = 1:length(feature_init)
+          if j >= i
+              big_feature(idx) = feature_init(i)*feature_init(j);
+              idx = idx + 1;
+          end
+        end
+      end
+      feature = [feature_init;big_feature];
+  end
+  f          = @feature_maker;
+  obs_subset = @(training_idx,song_indices) setdiff(training_idx,song_indices-1);
+  file_name  = 'one_after_quad_results.mat';
+end
+
+% Q+2-0
+function [f,obs_subset,file_name] = two_after_quad
+  function feature = feature_maker(F,i) 
+      feature_init = [F(:,i);F(:,i+1);F(:,i+2)];
+      % quadratic cross terms will be the size of a finite arithmetic sum
+      big_feature  = zeros((length(feature_init)^2+length(feature_init))/2,1);
+      idx = 1;
+      for i = 1:length(feature_init)
+        for j = 1:length(feature_init)
+          if j >= i
+              big_feature(idx) = feature_init(i)*feature_init(j);
+              idx = idx + 1;
+          end
+        end
+      end
+      feature = [feature_init;big_feature];
+  end
+  f          = @feature_maker;
+  obs_subset = @(training_idx,song_indices) setdiff(training_idx,vertcat(song_indices-1,song_indices-2));
+  file_name  = 'two_after_quad_results.mat';
+end
+
+% Q+3-0
+function [f,obs_subset,file_name] =  three_after_quad
+  function feature = feature_maker(F,i) 
+      feature_init = [F(:,i);F(:,i+1);F(:,i+2);F(:,i+3)];
+      % quadratic cross terms will be the size of a finite arithmetic sum
+      big_feature  = zeros((length(feature_init)^2+length(feature_init))/2,1);
+      idx = 1;
+      for i = 1:length(feature_init)
+        for j = 1:length(feature_init)
+          if j >= i
+              big_feature(idx) = feature_init(i)*feature_init(j);
+              idx = idx + 1;
+          end
+        end
+      end
+      feature = [feature_init;big_feature];
+  end
+  f          = @feature_maker;
+  obs_subset = @(training_idx,song_indices) setdiff(training_idx,vertcat(song_indices-1,song_indices-2,song_indices-3));
+  file_name  = 'three_after_quad_results.mat'; 
+end
+
+% Q+1-1
+function [f,obs_subset,file_name] = one_before_after_quad
+  function feature = feature_maker(F,i) 
+      feature_init = [F(:,i);F(:,i-1);F(:,i+1)];
+      % quadratic cross terms will be the size of a finite arithmetic sum
+      big_feature  = zeros((length(feature_init)^2+length(feature_init))/2,1);
+      idx = 1;
+      for i = 1:length(feature_init)
+        for j = 1:length(feature_init)
+          if j >= i
+              big_feature(idx) = feature_init(i)*feature_init(j);
+              idx = idx + 1;
+          end
+        end
+      end
+      feature = [feature_init;big_feature];
+  end
+  f          = @feature_maker;
+  obs_subset = @(training_idx,song_indices) setdiff(training_idx,vertcat(song_indices , song_indices -1));
+  file_name = 'one_before_after_quad_results.mat';
+end
+
+% Q+2-2
+function [f,obs_subset,file_name] = two_before_after_quad
+  function feature = feature_maker(F,i) 
+      feature_init = [F(:,i);F(:,i-1);F(:,i+1);F(:,i-2);F(:,i+2)];
+      % quadratic cross terms will be the size of a finite arithmetic sum
+      big_feature  = zeros((length(feature_init)^2+length(feature_init))/2,1);
+      idx = 1;
+      for i = 1:length(feature_init)
+        for j = 1:length(feature_init)
+          if j >= i
+              big_feature(idx) = feature_init(i)*feature_init(j);
+              idx = idx + 1;
+          end
+        end
+      end
+      feature = [feature_init;big_feature];
+  end
+  f          = @feature_maker;
+  obs_subset = @(training_idx,song_indices) setdiff(training_idx,vertcat(song_indices , ...
+      song_indices -1,song_indices-2,song_indices+1));
+  file_name = 'two_before_after_quad_results.mat';  
+end
+
+% Q+3-3
+function [f,obs_subset,file_name] = three_before_after_quad
+  function feature = feature_maker(F,i) 
+      feature_init = [F(:,i);F(:,i-1);F(:,i+1);F(:,i-2);F(:,i+2);F(:,i-3);F(:,i+3)];
+      % quadratic cross terms will be the size of a finite arithmetic sum
+      big_feature  = zeros((length(feature_init)^2+length(feature_init))/2,1);
+      idx = 1;
+      for i = 1:length(feature_init)
+        for j = 1:length(feature_init)
+          if j >= i
+              big_feature(idx) = feature_init(i)*feature_init(j);
+              idx = idx + 1;
+          end
+        end
+      end
+      feature = [feature_init;big_feature];
+  end
+  f          = @feature_maker;
+  obs_subset = @(training_idx,song_indices) setdiff(training_idx,vertcat(song_indices , ...
+      song_indices -1,song_indices-2,song_indices+1,song_indices-3,song_indices+2));
+  file_name = 'three_before_after_quad_results.mat';  
 end
 
 
