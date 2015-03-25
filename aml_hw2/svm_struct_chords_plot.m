@@ -58,7 +58,7 @@ function fig = plot_chroma(model_select,best_song)
   load(model_select)
   w = w_final(best_song);   
   
-  % get feature maker
+  % lookup feature_maker from string
   feature_list = {@linear_chroma,@linear_chroma_quad...
                 @one_before,@two_before,@three_before,...
                 @one_after, @two_after, @three_after,...
@@ -182,6 +182,7 @@ end
 
 %========================
 % same feature makers from the training program
+% didn't want to save ~20 matlab files to import externally
 %========================
 
 % menu of feature_makers
