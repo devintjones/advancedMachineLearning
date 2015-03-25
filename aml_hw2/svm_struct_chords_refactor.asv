@@ -1,9 +1,9 @@
-function svm_struct_chords
+function svm_struct_chords_refactor
 
   randn('state',0) ;
   rand('state',0) ;
 
-  % read data and pick random subset of songs
+  % read data and index songs
   songfiles = ls('advancedMachineLearning\aml_hw2\CHORDS\*.mat');
   random_songs = randsample(length(songfiles),10);
 
@@ -26,9 +26,9 @@ function svm_struct_chords
       c_final     = containers.Map();
       w_final     = containers.Map();
       for i=1:length(random_songs)
-          song = get_song_name(songfiles,random_songs(i));
+          song = strcat('advancedMachineLearning\aml_hw2\CHORDS\',songfiles(random_songs(i),:));
           load(song)
-          
+          function song = get_
           % parfor complains if these are not redefined
           F=F;
           L=L;
@@ -48,7 +48,7 @@ function svm_struct_chords
           make_c_vals = @(k) 10.^(k);
           C_vals = make_c_vals(-3:1);
 
-          constraint_param = ' -o 2 ';
+          constraint_param = ' -o 1 ';
           verbosity = ' -v 0 ';
 
           cv_score = zeros(length(C_vals),3);
@@ -63,9 +63,10 @@ function svm_struct_chords
 
           
           % select best Cval from cross validation
-          c      = find(cv_score(:,2)==max(cv_score(:,2)),1);
+          c = find(cv_score(:,2)==max(cv_score(:,2)),1);
           best_c = C_vals(c);
-          args   = [' -c ',num2str(best_c,'%f'),constraint_param,verbosity];
+          args = [' -c ',num2str(best_c,'%f'),constraint_param,verbosity];
+
           disp(['Using C = ',num2str(best_c,'%f'),' for final parameters'])
 
           
@@ -78,7 +79,6 @@ function svm_struct_chords
           [w,acc] = train_svm_struct(final_trains,test_idx,F,L,args,feature_maker);
           sprintf('Final Accuracy: %f',acc)
           
-          % log import data for aggregation
           song_scores(songfiles(random_songs(i),:)) = acc ;
           c_final(songfiles(random_songs(i),:))     = best_c ; 
           w_final(songfiles(random_songs(i),:))     = w ;
@@ -97,10 +97,6 @@ function svm_struct_chords
   
 end
 
-function song = get_song_name(songfiles,i)
-  song = strcat('advancedMachineLearning\aml_hw2\CHORDS\',songfiles(i,:));
-end
-          
 
 % menu of feature_makers
 % must take only F,i as arguements

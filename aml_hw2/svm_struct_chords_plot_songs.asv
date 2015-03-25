@@ -1,9 +1,9 @@
-function svm_struct_chords_plot
+function svm_struct_chords_plot_songs
   
   [feature_scores,best_song,best_model] = get_feature_scores();
   
   for i=1:2
-      fig = plot_chroma(best_model{i},best_song{i}{1})
+      fig = plot(best_model{i},best_song{i}{1})
   end
 
   
@@ -17,13 +17,13 @@ function svm_struct_chords_plot
   %}
 end
 
-function [feature_scores,best_song,model_select] = get_feature_scores()
-  feature_result_files = ls('*_songs_*_results.mat');
+function [feature_scores,best_song,best_model] = get_feature_scores()
+  results = ls('*_songs_*_results.mat');
   max_score      = [0 0];
   feature_scores = table();
-  for a=1:length(feature_result_files(:,1))
-    load(feature_result_files(a,:))
-    feature = strrep(strrep(feature_result_files(a,:),'_results.mat',''),'_songs','');
+  for a=1:length(results(:,1))
+    load(results(a,:))
+    feature = strrep(strrep(results(a,:),'_results.mat',''),'_songs','');
     vals = values(song_scores);
     avg_score = mean([vals{:}]);
     std_score = std( [vals{:}]);
@@ -32,13 +32,13 @@ function [feature_scores,best_song,model_select] = get_feature_scores()
         idx          = find(max([vals{:}])==[vals{:}]);
         song_names   = keys(song_scores);
         best_song{1} = song_names(idx);
-        model_select{1} = feature_result_files(a,:);
+        best_model{1} = results(a,:);
     elseif max([vals{:}]) > max_score(2)
         max_score(2) = max([vals{:}]);
         idx          = find(max([vals{:}])==[vals{:}]);
         song_names   = keys(song_scores);
         best_song{2} = song_names(idx);
-        model_select{2} = feature_result_files(a,:);
+        best_model{2} = results(a,:);
     end       
     feature_scores = [feature_scores;table({feature},avg_score,std_score)];
   end
@@ -46,8 +46,8 @@ function [feature_scores,best_song,model_select] = get_feature_scores()
   writetable(feature_scores,'feature_scores.csv')
 end
 
-function fig = plot_chroma(model_select,best_song)
-  load(model_select)
+function fig = plot(best_model,best_song)
+  load(best_model)
   w = w_final(best_song);   
   
   % get feature maker
@@ -61,16 +61,15 @@ function fig = plot_chroma(model_select,best_song)
                 'one_before_after','two_before_after','three_before_after'};
   feature_map = containers.Map(feature_names,feature_list);
   
-  split = strsplit(model_select,'_');
+  split = strsplit(best_model,'_');
   feature_maker = strjoin(split(1,3:length(split)-1),'_');
-  
+  disp(feature_maker)
   feature_select = feature_map(feature_maker);
   [feature_maker,obs_subset,filename] = feature_select();
-  file = strcat('advancedMachineLearning\aml_hw2\CHORDS\',best_song);
   
-  load(file)
+  load(strcat('advancedMachineLearning\aml_hw2\CHORDS\',best_song))
   
-  plot_title = strrep(strrep(strcat(model_select,' ',best_song),'_',' '),'.mat',' ');
+  plot_title = strrep(strrep(strcat(best_model,' ',best_song),'_',' '),'.mat',' ');
   
   [height,width] = size(F);
   song_indices=[1;1+width];
@@ -105,7 +104,6 @@ function fig = plot_chroma(model_select,best_song)
   text(max(final_trains),max(max(F(:,final_trains))),acc_string,'HorizontalAlignment','right');
   
   linkaxes(h,'x');
-  xlabel('Chroma Frame')
   
   pos=get(h,'position');
   bottom=pos{2}(2);

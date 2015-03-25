@@ -1,106 +1,60 @@
-function svm_struct_chords
+function svm_struct_chords_debug
 
   randn('state',0) ;
   rand('state',0) ;
 
-  % read data and pick random subset of songs
+  % read data and index songs
   songfiles = ls('advancedMachineLearning\aml_hw2\CHORDS\*.mat');
+  
+  F_final = [];
+  L_final = [];
+  song_indices=[1];
   random_songs = randsample(length(songfiles),10);
-
-
-  % iterate over each feature that are compared in the analysis
-  feature_list = {@linear_chroma,...
-                  @one_before,@two_before,@three_before,...
-                  @one_after, @two_after, @three_after,...
-                  @one_before_after,@two_before_after,@three_before_after};
-  for j=1:length(feature_list)
+  for i=1 %:length(random_songs)
+      song = strcat('advancedMachineLearning\aml_hw2\CHORDS\',songfiles(40,:));
+      load(song)
       
-      % select feature maker
-      [feature_maker,obs_subset,filename] = feature_list{j}();
-      disp(['Fitting feature: ',strrep(filename,'_results.mat','')])
-      filename = ['songs_', filename];
+      [height,width] = size(F);
       
-      % put relevant data in key value structure
-      % to aggregate stats over the song results for each feature
-      song_scores = containers.Map();
-      c_final     = containers.Map();
-      w_final     = containers.Map();
-      for i=1:length(random_songs)
-          song = get_song_name(songfiles,random_songs(i));
-          load(song)
-          
-          % parfor complains if these are not redefined
-          F=F;
-          L=L;
-
-          % keep track of song indices to make sure we don't build features
-          % that straddle songs
-          [height,width] = size(F);
-          song_indices = [1;1+width]; 
-
-
-          % 30% random sample from song added to training data
-          training_idx = randsample(width,round(width*.3));
-          final_trains  = obs_subset(training_idx,song_indices); % some frames need to be removed because of certain feature builders
-
-          
-          % svm_struct args
-          make_c_vals = @(k) 10.^(k);
-          C_vals = make_c_vals(-3:1);
-
-          constraint_param = ' -o 2 ';
-          verbosity = ' -v 0 ';
-
-          cv_score = zeros(length(C_vals),3);
-          for m=1:length(C_vals)
-              args = [' -c ',num2str(C_vals(m),'%f'),constraint_param,verbosity];
-              disp(['Fitting model: ',args])
-              scores = svm_struct_cv(3,final_trains,F,L,args,feature_maker);
-              scores 
-              cv_score(m,:) = [C_vals(m),mean(scores),std(scores)];
-          end
-          cv_score
-
-          
-          % select best Cval from cross validation
-          c      = find(cv_score(:,2)==max(cv_score(:,2)),1);
-          best_c = C_vals(c);
-          args   = [' -c ',num2str(best_c,'%f'),constraint_param,verbosity];
-          disp(['Using C = ',num2str(best_c,'%f'),' for final parameters'])
-
-          
-          % finally, fit to entire training data with the best C parameter and 
-          % measure accuracy on unseen test data (10%)
-          unusedF   = setdiff(1:width,training_idx);
-          test_idx  = randsample(unusedF,round(.1*width));
-          test_idx  = obs_subset(test_idx,song_indices);
-
-          [w,acc] = train_svm_struct(final_trains,test_idx,F,L,args,feature_maker);
-          sprintf('Final Accuracy: %f',acc)
-          
-          % log import data for aggregation
-          song_scores(songfiles(random_songs(i),:)) = acc ;
-          c_final(songfiles(random_songs(i),:))     = best_c ; 
-          w_final(songfiles(random_songs(i),:))     = w ;
-      end
+      F_final = [F_final,F] ;
+      L_final = [L_final;L];
       
-      % keep track of which constraint I used
-      if findstr(args,'-o 1')
-        filename = ['slack_',filename];
-      else
-        filename = ['margin_',filename];  
-      end
-
-      % so that we can read song_scores later and compare across features
-      save(filename)
+      % keep track of song indices to make sure we don't build features
+      % that straddle songs
+      song_indices = [song_indices;song_indices(length(song_indices))+width]; 
   end
+  
+  % 30% random sample from song added to training data
+  [height,width] = size(F_final);
+  training_idx = randsample(width,round(width*.8));
+  
+  % select feature maker and remove indices that span songs
+  [feature_maker,obs_subset,filename] = linear_chroma();
+  final_trains  = obs_subset(training_idx,song_indices);
+  
+  % iterate over a range of margin parameters C
+  make_c_vals = @(i) 10.^(i);
+  C_vals = make_c_vals(-3:1);
+  
+  
+  i = 4;
+  disp(['Using C = ',num2str(C_vals(i),'%f'),' for final parameters'])
+  % select best Cval from cross validation
+  args = [' -c ',num2str(C_vals(i),'%f'),' -o 1 -v 0 '];
+  
+  % finally, fit to entire training data with the best C parameter and 
+  % measure accuracy on unseen test data (10%)
+  unusedF = setdiff(1:width,training_idx);
+  test_idx = randsample(unusedF,round(.1*width));
+  % remove any unusable indices
+  test_idx  = obs_subset(test_idx,song_indices);
+  
+  [w,acc] = train_svm_struct(final_trains,test_idx,F_final,L_final,args,feature_maker);
+  sprintf('Final Accuracy: %f',acc)
+  save(filename)
   
 end
 
-function song = get_song_name(songfiles,i)
-  song = strcat('advancedMachineLearning\aml_hw2\CHORDS\',songfiles(i,:));
-end
-          
 
 % menu of feature_makers
 % must take only F,i as arguements
@@ -215,11 +169,7 @@ function scores = svm_struct_cv(folds,training_idx,F,L,args,feature_maker)
       % have to init parm in the body of parfor
       parm = struct
       parm.lossFn = @lossCB ;
-      if findstr(args,'-o 1')
-        parm.constraintFn  = @slackConstraintCB;
-      else
-        parm.constraintFn  = @marginConstraintCB;
-      end
+      parm.constraintFn  = @marginConstraintCB;
       parm.featureFn = @featureCB ;
       parm.verbose = 0 ;
 
@@ -242,7 +192,7 @@ end
 % trains and tests on specified indices of F
 % returns final w
 function [w,acc] = train_svm_struct(training_idx,test_idx,F,L,args,feature_maker)
-      disp('Training on entire training set')
+      disp('Training on enitre training set')
       for i=1:length(training_idx)
         patterns_train{i}  = feature_maker(F,training_idx(i));
         labels_train{i}    = L(training_idx(i)) ; 
@@ -254,13 +204,9 @@ function [w,acc] = train_svm_struct(training_idx,test_idx,F,L,args,feature_maker
       
       parm = struct;
       parm.lossFn = @lossCB ;
-      if findstr(args,'-o 1')
-        parm.constraintFn  = @slackConstraintCB;
-      else
-        parm.constraintFn  = @marginConstraintCB;
-      end
+      parm.constraintFn  = @slackConstraintCB;
       parm.featureFn = @featureCB ;
-      parm.verbose = 0 ;
+      parm.verbose = 1 ;
 
       psi = featureCB(parm, feature_maker(F,10), L(10));
       parm.dimension = length(psi);
@@ -271,6 +217,7 @@ function [w,acc] = train_svm_struct(training_idx,test_idx,F,L,args,feature_maker
       model = svm_struct_learn(args, parm) ;
       w = model.w ;
       acc = accuracy(parm,w,patterns_test,labels_test);
+      save('debug.mat')
 end
 
 
@@ -281,22 +228,37 @@ function acc = accuracy(param,w,test_x,test_y)
       if prediction == test_y{i}
           num_correct = num_correct + 1;
       end
+      disp([prediction,test_y{i}])
   end
   acc = num_correct/length(test_x);
 end
 
 % predict class of x based on w
 function prediction = predict(param,w,x)
-    for i = 0:24
-      psi   = param.featureFn(param,x,i);
-      score = dot(transpose(w),psi) ; 
+  max_score = -1000;
+  prediction = 0;
+  for j = 0:24
+      psi   = param.featureFn(param,x,j);
+      score = dot(psi,w) ;
+      %{
       if ~exist('max_score')
           max_score = score;
-          prediction = i;
+          prediction = j;
       end
+      %}
       if score > max_score
           max_score = score;
-          prediction = i;
+          prediction = j;
+      end
+      if param.verbose
+      disp(['seperate row:'])
+      %disp([psi,w])
+      disp(transpose(psi))
+      disp(sparse(w))
+      disp(j)
+      disp(prediction)
+      disp(score)
+      disp(max_score)
       end
     end
 end 

@@ -1,9 +1,9 @@
-function svm_struct_chords
+function svm_struct_chords_songonly
 
   randn('state',0) ;
   rand('state',0) ;
 
-  % read data and pick random subset of songs
+  % read data and index songs
   songfiles = ls('advancedMachineLearning\aml_hw2\CHORDS\*.mat');
   random_songs = randsample(length(songfiles),10);
 
@@ -15,40 +15,38 @@ function svm_struct_chords
                   @one_before_after,@two_before_after,@three_before_after};
   for j=1:length(feature_list)
       
-      % select feature maker
+      % select feature maker and remove indices that span songs
       [feature_maker,obs_subset,filename] = feature_list{j}();
       disp(['Fitting feature: ',strrep(filename,'_results.mat','')])
       filename = ['songs_', filename];
       
-      % put relevant data in key value structure
-      % to aggregate stats over the song results for each feature
+      % put song accuracies in key value structure
+      % for aggregate stats over the feature models
       song_scores = containers.Map();
-      c_final     = containers.Map();
-      w_final     = containers.Map();
+      
       for i=1:length(random_songs)
-          song = get_song_name(songfiles,random_songs(i));
+          song = strcat('advancedMachineLearning\aml_hw2\CHORDS\',songfiles(random_songs(i),:));
           load(song)
-          
-          % parfor complains if these are not redefined
+
+          [height,width] = size(F);
+
           F=F;
           L=L;
 
           % keep track of song indices to make sure we don't build features
           % that straddle songs
-          [height,width] = size(F);
           song_indices = [1;1+width]; 
 
 
           % 30% random sample from song added to training data
           training_idx = randsample(width,round(width*.3));
-          final_trains  = obs_subset(training_idx,song_indices); % some frames need to be removed because of certain feature builders
 
-          
+          final_trains  = obs_subset(training_idx,song_indices);
           % svm_struct args
           make_c_vals = @(k) 10.^(k);
           C_vals = make_c_vals(-3:1);
 
-          constraint_param = ' -o 2 ';
+          constraint_param = ' -o 1 ';
           verbosity = ' -v 0 ';
 
           cv_score = zeros(length(C_vals),3);
@@ -63,10 +61,10 @@ function svm_struct_chords
 
           
           % select best Cval from cross validation
-          c      = find(cv_score(:,2)==max(cv_score(:,2)),1);
-          best_c = C_vals(c);
-          args   = [' -c ',num2str(best_c,'%f'),constraint_param,verbosity];
-          disp(['Using C = ',num2str(best_c,'%f'),' for final parameters'])
+          c = find(cv_score(:,2)==max(cv_score(:,2)),1);
+          args = [' -c ',num2str(C_vals(c),'%f'),constraint_param,verbosity];
+
+          disp(['Using C = ',num2str(C_vals(c),'%f'),' for final parameters'])
 
           
           % finally, fit to entire training data with the best C parameter and 
@@ -78,13 +76,11 @@ function svm_struct_chords
           [w,acc] = train_svm_struct(final_trains,test_idx,F,L,args,feature_maker);
           sprintf('Final Accuracy: %f',acc)
           
-          % log import data for aggregation
-          song_scores(songfiles(random_songs(i),:)) = acc ;
-          c_final(songfiles(random_songs(i),:))     = best_c ; 
-          w_final(songfiles(random_songs(i),:))     = w ;
+          song_scores(songfiles(random_songs(i),:)) = [acc 
+              C_vals(c) w ];
       end
       
-      % keep track of which constraint I used
+      % keep track of which constraint i used
       if findstr(args,'-o 1')
         filename = ['slack_',filename];
       else
@@ -97,10 +93,6 @@ function svm_struct_chords
   
 end
 
-function song = get_song_name(songfiles,i)
-  song = strcat('advancedMachineLearning\aml_hw2\CHORDS\',songfiles(i,:));
-end
-          
 
 % menu of feature_makers
 % must take only F,i as arguements
