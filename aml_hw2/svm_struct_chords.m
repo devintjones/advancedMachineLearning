@@ -9,11 +9,10 @@ function svm_struct_chords
 
 
   % iterate over each feature that are compared in the analysis
-  feature_list = {@linear_chroma,...
+  feature_list = {@linear_chroma,@linear_chroma_quad,...
                   @one_before,@two_before,@three_before,...
                   @one_after, @two_after, @three_after,...
-                  @one_before_after,@two_before_after,@three_before_after};
-  feature_list = {@linear_chroma,@linear_chroma_quad,...
+                  @one_before_after,@two_before_after,@three_before_after,...
                   @one_after_quad, @two_after_quad, @three_after_quad,...
                   @one_before_after_quad,@two_before_after_quad,@three_before_after_quad};
   for j=1:length(feature_list)
@@ -32,7 +31,7 @@ function svm_struct_chords
           song = get_song_name(songfiles,random_songs(i));
           load(song)
           
-          % parfor complains if these are not redefined
+          % parfor complains if these are not defined explicitly
           F=F;
           L=L;
 
@@ -51,18 +50,20 @@ function svm_struct_chords
           
           % pick constaint. if slack, use C as tunning param.
           %                 if margin, use e
-          constraint_param = ' -o 1 ';
-          if findstr(args,'-o 1')
+          constraint_param = ' -o 2 ';
+          
+          make_c_vals = @(k) 10.^(k);
+          if findstr(constraint_param,'-o 1')
             tune_val = ' -c ';
+            tuning_param = make_c_vals(-3:1);
           else
-            tune_val = ' -e ';
+            tune_val = ' -c 1 -e ';
+            tuning_param = make_c_vals(-5:-1);
           end
           
           verbosity = ' -v 0 ';
           
-          make_c_vals = @(k) 10.^(k);
-          tuning_param = make_c_vals(-3:1);
-
+          
       
           cv_score = zeros(length(tuning_param),3);
           for m=1:length(tuning_param)
