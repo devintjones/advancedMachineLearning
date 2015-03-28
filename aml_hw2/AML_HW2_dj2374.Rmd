@@ -13,11 +13,11 @@ uni: dj2374
 
 The goal of the assingment is to label music by the Beatles where each song is represented as a sequence of Chroma frames over time. Chroma frames are 12-dimensional continuous features between 0,1 that compactly represent sound in a short time-window.
 
-Various conditional learning methods could be applied to this problem. In [this paper](http://www.cs.columbia.edu/~jebara/papers/icmla09adrian.pdf), Weller, Ellis, and Jebara show that structured support vector machines outperformed then state of the art methods, Hidden Markov Models, for the 2008 LabROSA Supervised Chord Recognition System. 
+Various conditional learning methods could be applied to this problem. In [this paper](http://www.cs.columbia.edu/~jebara/papers/icmla09adrian.pdf), Weller, Ellis, and Jebara show that structured support vector machines outperformed then state of the art methods, Hidden Markov Models, for the 2008 LabROSA Supervised Chord Recognition System.
 
-## Method
+# Method
 
-Structured SVM is a conditional learning method that generalizes large-margin SVM to  handle multiclass and structured prediciton. The primal form of SVM is 
+Structured SVM is a conditional learning method that generalizes large-margin SVM to  handle multiclass and structured prediciton. The primal form of SVM [Vapnik] is 
 $$\underset{w,b,\xi \geq 0}{min} \frac{1}{2}\left \| w \right \|^{2}$$
 $$s.t. \forall i \in 1...n: y_{i}(w^{T}\cdot x_{i}-b)\geq1      $$
 
@@ -25,13 +25,16 @@ The primal form of the 1-slack formulation of SVMstruct from [JoFinYu08] is
 $$\underset{w,\xi \geq 0}{min} \frac{1}{2}\left \| w \right \|^{2}$$
 $$s.t.  \forall y{}'_{1}..y{}'_{n} \in Y : \frac{1}{n}\sum_{i=1}^{n}[w^{T}\cdot \phi \left ( x,y_{i} \right ) - w^{T}\cdot \phi \left ( x,y{}'_{i} \right )] \geq  \frac{1}{n}\sum_{i=1}^{n}[\Delta (y_{i},y{}'_{i})] - \xi   $$
 
-The 1-slack formulation was derived after the n-slack formulation and is more efficient because there are less constaints to evaluate. 
+The 1-slack formulation is derived from the n-slack formulation, which is not included here, and is more efficient than the n-slack because constaints are only evaluated if they are violated. 
 
 Beyond the obvious difference in constaints between SVM and SVMstruct, in the latter, the feature vectors is generated in a clever way. A joint feature map $\phi \left ( x,y \right )$ is used to map the combination of $x$ and $y$ into a sparse, wide vector. The resulting vector is $DK$ dimensional, where $D$ is the dimenion of $x$ and $K$ is the number of classes of $y$.  This feature map replaces the $x$ vector when trainingn the SVM. All values of $\phi \left ( x,y \right )$ where $x$ is not are set to zero. 
 
-Also instead of using the support vectors to classify the observation outright as in SVM, a predition of $y$ is found by the following evaluation: $$y = argmax_{y{}'}  w^{T}\cdot \phi \left ( x,y{}' \right )$$ This should be intuitive based on the joint feature map; training a model on the sparse feature map produces lower values in w where there is an absence of the original $x$ values. 
+Additionally the delta function can be formulated to suit the problem. That is, if we can quantify a distance between ys, we can add this information to the model to improve performance. For the chord data encoded into Chroma features, a simple [0,1] loss was used. Perhaps a music theory expert could suggest methods to quantify distances between chords, potentially under a prior of the key which the music piece is composed. 
 
-Additionally the delta function can be formulated to suit the problem. That is, if we can quantify a distance between ys, we can add this information to the model to improve performance. 
+
+Also instead of using the support vectors to classify the observation outright as in SVM, a predition of $y$ is found by the following evaluation: $$y = argmax_{y{}'}  w^{T}\cdot \phi \left ( x,y{}' \right )$$ This should be intuitive based on the joint feature map; training a model on the sparse feature map produces lower values in w where there is an absence of the original $x$ values.
+
+While experimenting with the suggested Structured SVM packages, SVMstruct and SVMhmm, two methods were tested to evaluate $argmax_{y{}'}$. The first was was a greedy algorithm, and the second was Viterbi decoding which is implemented in the SVMhmm package. 
 
 # Data
 
@@ -41,9 +44,51 @@ The data used for the assignment can be obtained [here](http://www.cs.columbia.e
 
 # Method
 
-Various feature constructors and contraint settings were tested to evaluate accuracy. A random subset of 10 songs were selected from the data, and model was trained over a random 30% subset of data from each of the 10 songs for every feature. The C paramater was tuned for slack constraint models via k-fold cross validation in parallel, and the best C was used to retrain over the same 30%. The C paramter is not used in the margin constraint formulation. The Hamming accuracy was evaluated on an unseen random 10% subset from the same song used for training.
-\pagebreak
-The table below shows the average and standard deviation of model accuracies over 10 random songs. 
+Various feature constructors and contraint settings were tested to find the best model for this data. Feature complexity ranged from a single, linear Chroma frame used to predict the corresponding chord label, ranging to three frames before and three frames after used to predict a chord, as well as a quadratic cross terms were introduced into the model to emulate a non-linear relationship over the Chroma features within and across frames. The most complex feature inlcuded 3 frames before, 3 frames after, and quadratic cross terms. 
+
+Using the notation from the paper, this feature would be labeled Q+3-3, and yields a dimensionality of 3654 for the x pattern, and after transformation via $\phi$ across 25 classes of y, is 91350. This feature model took approximately 6 hours to train over 10 songs. In entirety, the SVMhmm module took approximately 24 hours to train. The SVMstruct module required approximately 12 hours for training. In both training runs, the high dimensional features produced by quadrataic cross terms utilized approximately 90% of the total training time. 
+
+A random subset of 10 songs were selected from the data, and model was trained over a random 30% subset of data from each of the 10 songs for every feature. The hyper parameter C was tuned via k-fold cross validation between .01 and 100, and the best C was used to retrain over the same 30%. 3 folds were used in cross validaiton. The Hamming accuracy was used to evaluate said trained model on an unseen random 10% subset of data from the same song. SVMstruct's Matlab API enabled a parallel implementation of cross-validation.  
+
+
+# Results
+The table below shows averages and standard deviations of accuracies over 10 random songs trained with SVMhmm. Results are sorted by average accuracy. 
+
+When comparing these results to the paper, two things are immediately evident. The first is that the accuracies are consistently higher than the results of the paper, and the second is the standard deviations of the the feature models are also consistently higher compared to the paper. 
+
+The data used for the paper was found to have some indexing errors which could be the reason for the large imporovement in accuracy. The data used in this analysis had been corrected. Or, perhaps the range of C values were better suited for this model. 
+
+I initially hypothesized that the reason for the discrepancy in score variance was due to the method of tuning C and aggregating accuracy used in the paper: for each song, accuracies were computed two times on disjoint, unseen 5% samples from the song, and then averaged. The resulting averaged accuracy was then rolled into a 10 song average to evaluate the model, thus reducing the percieved variability of the scores.
+
+Comparatively, I used k-vold cross validation. In k-fold cross validation, the training data is split into k subsets. For each k, the data is trained on the data less the kth subset, and then tested on the kth subset. This occurs k times, and the accuracy is then averaged over the k training procedures. k-fold cross validation was used to tune the hyper parameter C, and the best C from these runs was used to test accuracy on the 10% holdout set. 
+
+Given the noticeable difference in methods, I tested the latter method in the final hours before the assignment deadline, and found this method to increase the variances over the scores. Results from the paper's cross validation and aggregation method are included in the 2nd chart below. Regardless, the accuracies these results are so great that they would indeed outperform the state of the art methods with a t-test, accounting for score variance. 
+
+Finally, a third major difference between these results and the paper is that previous frames seem to provide additional predictive value to the model in both CV methods. Previous frames are used in the top 50% of the feature models. This contradicts the findings of the paper - the paper found that including future frames in the model improved performance. The reason for the discrepancy could be due to the indexing error in the data used in the paper. 
+
+## SVM HMM: Viterbi Decoding. K-fold CV
+```{r echo=F}
+library(knitr)
+results <- read.csv('C:/Users/Devin/Documents/MATLAB/hmm_feature_scores.csv')
+names(results) <- c("Feature","AvgScore","ScoreStddev")
+results <- results[order(-results$AvgScore),]
+row.names(results) <- NULL
+kable(results)
+```
+
+## SVM HMM: Viterbi Decoding. Different CV
+```{r echo=F}
+library(knitr)
+results <- read.csv('C:/Users/Devin/Documents/MATLAB/hmm_feature_scores_cv.csv')
+names(results) <- c("Feature","AvgScore","ScoreStddev")
+results <- results[order(-results$AvgScore),]
+row.names(results) <- NULL
+kable(results)
+```
+
+## SVM Struct: Greedy Prediction
+
+The Greedy Prediction method was tested extensively because it was the function refrenced in the lecture notes for prediction. For slack constraints, the hyperparameter $C$ was tuned in cross validation, while in margin constraint models, $e$ was tuned. Accuracies are lower in comparision to Viterbi Decoding, likley because that method has the ability to produce a richer decoding in producing $\phi$, the combination of $x$ and $y$ used for prediction.
 
 ```{r echo=F}
 library(knitr)
@@ -54,10 +99,31 @@ row.names(results) <- NULL
 kable(results)
 ```
 
+# Plots
 
-# Songs
+## SVM HMM Plots
+Below are visualizations for the best scoring songs for the 2 best performing models from the SVMhmm k-fold cross validatoin runs. 
 
-![song1](C:/Users/Devin/Documents/MATLAB/advancedMachineLearning/aml_hw2/song1.png)
+I've been told that "Come Together" is one of the simplest chord progressions in all of modern rock and roll, so I am not surprised that this song scored the highest. This is evident in the low variability in the true value of the chords plot. Additionally, the Chroma features look visually consistent across the whole song. Perhaps the audio recording was cleaner for this song.  
 
-![song2](C:/Users/Devin/Documents/MATLAB/advancedMachineLearning/aml_hw2/song2.png)
+![song1](C:/Users/Devin/Documents/MATLAB/advancedMachineLearning/aml_hw2/hmm_song1.png)
+
+![song2](C:/Users/Devin/Documents/MATLAB/advancedMachineLearning/aml_hw2/hmm_song2.png)
+
+
+## SVM Struct Plots
+As mentioned earlier, performance was significantly lower for the SVMstruct runs. Below are the top performing models and songs for the greedy prediction algorithm. 
+![song1](C:/Users/Devin/Documents/MATLAB/advancedMachineLearning/aml_hw2/song2.png)
+
+![song2](C:/Users/Devin/Documents/MATLAB/advancedMachineLearning/aml_hw2/song1.png)
+
+# Conclusion and Future Work
+
+SVMhmm is a state of the art model for the chord prediction problem, out performing other methods (HMM) even if we normalize by standard deviations. 
+
+Further improvements in software could be made to create a Matlab API for the SVMhmm module to enable faster development and more of Matlab resources such as parellelization. Additionally, the quadratic cross terms are used in lieu of non-linear kernels due to constraints in the C implementation of SVMstruct. Nonlinear kernel implmentation would enable rapid testing and devlopment of nonlinear features that best suit this problem without increasing the dimensionality of the x vector by a polynomial factor, thus drastically reducing the training time for non-linear data mappings.
+
+Perhaps variability of scores could be reduced by using more than 30% training data.
+
+Finally, further research could be done in music theory to quantify the diference between chords, perhaps under a prior belief that a song is composed in a specific key. 
 
